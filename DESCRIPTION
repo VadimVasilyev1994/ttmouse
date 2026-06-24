@@ -10,7 +10,7 @@ Description: Engine for a public tool that projects raw mouse RNA-seq count
     the frozen TPM preprocessing contract, model loading and gene validation,
     and the projection wrapper. The Shiny front-end and Docker packaging are
     added in later phases.
-License: GPL (>= 3)
+License: MIT + file LICENSE
 Encoding: UTF-8
 Roxygen: list(markdown = TRUE)
 Depends:
@@ -25,7 +25,7 @@ Imports:
 Suggests:
     testthat (>= 3.0.0)
 Remotes:
-    VadimVasilyev1994/TimeTeller-v2
+    VadimVasilyev1994/TimeTeller-v2@f3cbd4492ac2f4afbfaddc16d717d34c96353527
 Config/testthat/edition: 3
 Config/roxygen2/version: 8.0.0
 URL: https://github.com/VadimVasilyev1994/ttmouse

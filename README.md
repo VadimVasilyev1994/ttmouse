@@ -9,12 +9,6 @@ Pipeline (runtime):
 `read_counts()` → `preprocess_counts()` → `validate_genes()` → `project_test_data()`
 → `Test_Data$Results_df` (CSV export) + plots.
 
-## You must add one file
-
-`R/counts_to_tpm.R` — **your own** TPM function (already written; provided
-separately). `preprocess_counts()` calls it. Until it is present, the package
-builds but `preprocess_counts()` cannot run and `R CMD check` will note an
-undefined `counts_to_tpm`. Give it a roxygen `@export` header when you add it.
 
 ## Dependencies
 
