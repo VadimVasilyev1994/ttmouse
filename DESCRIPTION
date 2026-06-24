@@ -1,0 +1,30 @@
+Package: ttmouse
+Title: Project Mouse RNA-seq Data onto a Pre-built TimeTeller Model
+Version: 0.0.0.9000
+Authors@R:
+    person("Vadim", "Vasilyev", email = "vadim.vasilyev@warwick.ac.uk",
+           role = c("aut", "cre"))
+Description: Engine for a public tool that projects raw mouse RNA-seq count
+    matrices onto pre-built TimeTeller circadian-clock models and returns the
+    model results (predicted phase and dysfunction). Provides file ingestion,
+    the frozen TPM preprocessing contract, model loading and gene validation,
+    and the projection wrapper. The Shiny front-end and Docker packaging are
+    added in later phases.
+License: GPL (>= 3)
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.2.0)
+Imports:
+    DGEobj.utils,
+    edgeR,
+    openxlsx,
+    TimeTeller,
+    tools,
+    utils
+Suggests:
+    testthat (>= 3.0.0)
+Remotes:
+    VadimVasilyev1994/TimeTeller-v2
+Config/testthat/edition: 3
+Config/roxygen2/version: 8.0.0

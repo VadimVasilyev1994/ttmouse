@@ -1,0 +1,5 @@
+^data-raw$
+^HANDOFF\.md$
+^README\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
