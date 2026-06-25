@@ -33,3 +33,44 @@ test_that("n_samples defaults to the test array", {
 test_that("n_samples errors when the array is absent", {
   expect_error(n_samples(list(), "test"), "likelihood array")
 })
+
+# ---------------------------------------------------------------------------
+# sample_label()
+# ---------------------------------------------------------------------------
+
+make_obj_with_meta <- function() {
+  list(Metadata = list(Test = list(
+    Group_1   = c("Adrenal", "Adrenal", "Adrenal"),
+    Group_2   = c("ALF", "TRF", "ALF"),
+    Group_3   = as.character(rep(NA, 3)),
+    Time      = c(0, 2, 4),
+    Replicate = as.character(rep(NA, 3))
+  )))
+}
+
+test_that("sample_label builds a label from present, non-NA fields", {
+  obj <- make_obj_with_meta()
+  lab <- sample_label(obj, 2)
+  expect_true(grepl("group_1: Adrenal", lab))
+  expect_true(grepl("group_2: TRF", lab))
+  expect_true(grepl("time: 2", lab))
+  # Group_3 and Replicate are all NA -> omitted.
+  expect_false(grepl("group_3", lab))
+  expect_false(grepl("replicate", lab))
+})
+
+test_that("sample_label keeps the canonical field order", {
+  obj <- make_obj_with_meta()
+  expect_equal(sample_label(obj, 1), "group_1: Adrenal | group_2: ALF | time: 0")
+})
+
+test_that("sample_label returns empty string when no metadata block exists", {
+  expect_equal(sample_label(list(), 1), "")
+  expect_equal(sample_label(list(Metadata = list()), 1), "")
+})
+
+test_that("sample_label returns empty string when all fields are NA", {
+  obj <- list(Metadata = list(Test = list(
+    Group_1 = NA, Group_2 = NA, Time = NA)))
+  expect_equal(sample_label(obj, 1), "")
+})

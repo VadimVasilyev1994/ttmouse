@@ -57,3 +57,44 @@ n_samples <- function(object, train_or_test = c("test", "train")) {
   }
   dim(arr)[2]
 }
+
+#' Build a metadata label for a sample (for plot annotation)
+#'
+#' Returns a short, human-readable string of the metadata stored for one sample
+#' -- whichever of `group_1/2/3`, `time`, `replicate` are present (non-NA) -- for
+#' annotating the per-sample plots. Returns `""` when no metadata is available
+#' (e.g. the intergene path with no metadata file), so callers can skip the
+#' annotation.
+#'
+#' Verified against VadimVasilyev1994/TimeTeller-v2 (commit f3cbd44),
+#' `add_test_data()`: the supplied metadata is stored under
+#' `object$Metadata$Test$Group_1`/`Group_2`/`Group_3`/`Time`/`Replicate`, each a
+#' vector of length n_samples (NA-filled when not supplied).
+#'
+#' @param object A post-projection object from [project_test_data()].
+#' @param sample_num Sample index (1-based).
+#' @param train_or_test Which metadata block to read; `"test"` (default) or
+#'   `"train"`.
+#' @return A single string like `"group_1: Adrenal | group_2: ALF | time: 0"`,
+#'   or `""` if nothing is available.
+#' @export
+sample_label <- function(object, sample_num, train_or_test = c("test", "train")) {
+  train_or_test <- match.arg(train_or_test)
+  block <- if (train_or_test == "test") object[["Metadata"]][["Test"]]
+           else object[["Metadata"]][["Train"]]
+  if (is.null(block)) return("")
+
+  # Canonical label -> stored slot name; kept in a fixed display order.
+  fields <- c(group_1 = "Group_1", group_2 = "Group_2", group_3 = "Group_3",
+              time = "Time", replicate = "Replicate")
+
+  parts <- character(0)
+  for (lab in names(fields)) {
+    vec <- block[[fields[[lab]]]]
+    if (is.null(vec) || sample_num > length(vec)) next
+    val <- vec[sample_num]
+    if (is.null(val) || is.na(val) || !nzchar(trimws(as.character(val)))) next
+    parts <- c(parts, paste0(lab, ": ", trimws(as.character(val))))
+  }
+  paste(parts, collapse = " | ")
+}

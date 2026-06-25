@@ -2,9 +2,15 @@
 % Please edit documentation in R/read_metadata.R
 \name{read_metadata}
 \alias{read_metadata}
-\title{Read an uploaded sample-metadata file for the time-course path}
+\title{Read an uploaded sample-metadata file}
 \usage{
-read_metadata(path, counts = NULL, sheet = 1, verbose = FALSE)
+read_metadata(
+  path,
+  counts = NULL,
+  require_time = TRUE,
+  sheet = 1,
+  verbose = FALSE
+)
 }
 \arguments{
 \item{path}{Path to the uploaded \code{.csv} or \code{.xlsx} metadata file.}
@@ -13,6 +19,10 @@ read_metadata(path, counts = NULL, sheet = 1, verbose = FALSE)
 \code{\link[=read_counts]{read_counts()}}. When supplied, the number of metadata rows is checked
 against the number of sample columns (\code{ncol(counts)}); when \code{NULL} the
 check is skipped.}
+
+\item{require_time}{If \code{TRUE} (default), a \code{time} column is required (the
+time-course path). Set \code{FALSE} for the intergene path, where metadata and
+all of its columns are optional.}
 
 \item{sheet}{For \code{.xlsx}, the worksheet to read (name or index; default first).}
 
@@ -25,15 +35,17 @@ their canonical names (\code{time}, \code{group_1}, \code{group_2}, \code{group_
 }
 \description{
 Reads the per-sample metadata file (CSV or XLSX) that accompanies a count
-matrix on the time-course projection path and returns it as a data.frame,
-ready to supply the grouping/time arguments of \code{\link[=project_test_data]{project_test_data()}}.
+matrix and returns it as a data.frame, ready to supply the grouping/time
+arguments of \code{\link[=project_test_data]{project_test_data()}}.
 }
 \details{
-Column contract: a \code{time} column is required; \code{group_1}, \code{group_2},
-\code{group_3} and \code{replicate} are optional. Columns may appear in any order and
-are matched case-insensitively (e.g. \code{Time}, \code{TIME} and \code{time} all match).
-Recognised columns are renamed to their canonical lower-case spelling so
-downstream code can rely on exact names; any other columns are kept as-is.
+Column contract: the recognised columns are \code{time}, \code{group_1}, \code{group_2},
+\code{group_3} and \code{replicate}. They may appear in any order and are matched
+case-insensitively (e.g. \code{Time}, \code{TIME} and \code{time} all match). Recognised
+columns are renamed to their canonical lower-case spelling so downstream code
+can rely on exact names; any other columns are kept as-is. \code{time} is required
+on the time-course path (\code{require_time = TRUE}) and optional on the intergene
+path (\code{require_time = FALSE}), where all columns are optional.
 
 Row order is the caller's responsibility: the metadata rows must already be
 in the same order as the columns (samples) of the count matrix. This function

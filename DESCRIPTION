@@ -22,9 +22,12 @@ Imports:
     TimeTeller,
     tools,
     utils,
-    plotly
+    plotly,
+    shiny,
+    ggplot2
 Suggests:
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
 Remotes:
     VadimVasilyev1994/TimeTeller-v2@f3cbd4492ac2f4afbfaddc16d717d34c96353527
 Config/testthat/edition: 3

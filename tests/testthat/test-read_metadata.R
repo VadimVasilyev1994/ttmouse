@@ -2,20 +2,15 @@
 #
 # Tests for read_metadata(). The CSV tests need only base R and run anywhere;
 # the XLSX round-trip is skipped unless openxlsx is installed.
-#
-# Run with:  source("read_metadata.R"); testthat::test_file("test-read_metadata.R")
-# (or load the package, once read_metadata is part of it).
 
 library(testthat)
 
-# Helper: write a data.frame to a temp CSV and return the path.
 write_csv_tmp <- function(df) {
   path <- tempfile(fileext = ".csv")
   utils::write.csv(df, path, row.names = FALSE)
   path
 }
 
-# A minimal valid metadata table: time + two optional columns.
 make_meta <- function() {
   data.frame(
     time      = c(0, 6, 12, 18),
@@ -37,7 +32,7 @@ test_that("a valid CSV with time + optional columns is read", {
   expect_true(all(c("time", "group_1", "replicate") %in% colnames(md)))
 })
 
-test_that("only 'time' is required; optional columns may be absent", {
+test_that("only 'time' is required by default; optional columns may be absent", {
   path <- write_csv_tmp(data.frame(time = c(0, 6, 12)))
   md <- read_metadata(path)
   expect_equal(colnames(md), "time")
@@ -46,7 +41,7 @@ test_that("only 'time' is required; optional columns may be absent", {
 
 test_that("column names are matched case-insensitively and canonicalised", {
   df <- make_meta()
-  colnames(df) <- c("Time", "Group_1", "REPLICATE")   # mixed case
+  colnames(df) <- c("Time", "Group_1", "REPLICATE")
   path <- write_csv_tmp(df)
   md <- read_metadata(path)
   expect_true(all(c("time", "group_1", "replicate") %in% colnames(md)))
@@ -77,14 +72,32 @@ test_that("surrounding whitespace in headers still matches", {
 })
 
 # ---------------------------------------------------------------------------
-# Validation / errors
+# require_time toggle (intergene path)
 # ---------------------------------------------------------------------------
 
-test_that("missing 'time' column is rejected", {
+test_that("missing 'time' is rejected by default (timecourse path)", {
   df <- data.frame(group_1 = c("a", "b"), replicate = c(1, 2))
   path <- write_csv_tmp(df)
   expect_error(read_metadata(path), "time")
 })
+
+test_that("missing 'time' is allowed when require_time = FALSE (intergene)", {
+  df <- data.frame(group_1 = c("a", "b"), replicate = c(1, 2))
+  path <- write_csv_tmp(df)
+  md <- read_metadata(path, require_time = FALSE)
+  expect_true(all(c("group_1", "replicate") %in% colnames(md)))
+  expect_false("time" %in% colnames(md))
+})
+
+test_that("require_time = FALSE still applies the duplicate-column check", {
+  df <- data.frame(Time = c(0, 6), TIME = c(1, 2), check.names = FALSE)
+  path <- write_csv_tmp(df)
+  expect_error(read_metadata(path, require_time = FALSE), "multiple columns")
+})
+
+# ---------------------------------------------------------------------------
+# Other validation / errors
+# ---------------------------------------------------------------------------
 
 test_that("two columns collapsing to the same name are rejected", {
   df <- data.frame(time = c(0, 6), TIME = c(1, 2), check.names = FALSE)
@@ -93,21 +106,21 @@ test_that("two columns collapsing to the same name are rejected", {
 })
 
 test_that("sample-count mismatch against the count matrix is rejected", {
-  path   <- write_csv_tmp(make_meta())          # 4 rows
-  counts <- matrix(0, nrow = 3, ncol = 3)       # 3 samples
+  path   <- write_csv_tmp(make_meta())
+  counts <- matrix(0, nrow = 3, ncol = 3)
   expect_error(read_metadata(path, counts = counts), "mismatch")
 })
 
 test_that("matching sample count passes the check", {
-  path   <- write_csv_tmp(make_meta())          # 4 rows
-  counts <- matrix(0, nrow = 3, ncol = 4)       # 4 samples
+  path   <- write_csv_tmp(make_meta())
+  counts <- matrix(0, nrow = 3, ncol = 4)
   md <- read_metadata(path, counts = counts)
   expect_equal(nrow(md), 4L)
 })
 
 test_that("a NULL count matrix skips the sample-count check", {
   path <- write_csv_tmp(make_meta())
-  expect_silent(read_metadata(path))            # no counts -> no check, no error
+  expect_silent(read_metadata(path))
 })
 
 test_that("unsupported file extension is rejected", {

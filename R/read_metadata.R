@@ -1,14 +1,16 @@
-#' Read an uploaded sample-metadata file for the time-course path
+#' Read an uploaded sample-metadata file
 #'
 #' Reads the per-sample metadata file (CSV or XLSX) that accompanies a count
-#' matrix on the time-course projection path and returns it as a data.frame,
-#' ready to supply the grouping/time arguments of [project_test_data()].
+#' matrix and returns it as a data.frame, ready to supply the grouping/time
+#' arguments of [project_test_data()].
 #'
-#' Column contract: a `time` column is required; `group_1`, `group_2`,
-#' `group_3` and `replicate` are optional. Columns may appear in any order and
-#' are matched case-insensitively (e.g. `Time`, `TIME` and `time` all match).
-#' Recognised columns are renamed to their canonical lower-case spelling so
-#' downstream code can rely on exact names; any other columns are kept as-is.
+#' Column contract: the recognised columns are `time`, `group_1`, `group_2`,
+#' `group_3` and `replicate`. They may appear in any order and are matched
+#' case-insensitively (e.g. `Time`, `TIME` and `time` all match). Recognised
+#' columns are renamed to their canonical lower-case spelling so downstream code
+#' can rely on exact names; any other columns are kept as-is. `time` is required
+#' on the time-course path (`require_time = TRUE`) and optional on the intergene
+#' path (`require_time = FALSE`), where all columns are optional.
 #'
 #' Row order is the caller's responsibility: the metadata rows must already be
 #' in the same order as the columns (samples) of the count matrix. This function
@@ -20,6 +22,9 @@
 #'   [read_counts()]. When supplied, the number of metadata rows is checked
 #'   against the number of sample columns (`ncol(counts)`); when `NULL` the
 #'   check is skipped.
+#' @param require_time If `TRUE` (default), a `time` column is required (the
+#'   time-course path). Set `FALSE` for the intergene path, where metadata and
+#'   all of its columns are optional.
 #' @param sheet For `.xlsx`, the worksheet to read (name or index; default first).
 #' @param verbose If `TRUE`, print a one-line summary of the columns found.
 #'
@@ -27,7 +32,8 @@
 #'   their canonical names (`time`, `group_1`, `group_2`, `group_3`,
 #'   `replicate`).
 #' @export
-read_metadata <- function(path, counts = NULL, sheet = 1, verbose = FALSE) {
+read_metadata <- function(path, counts = NULL, require_time = TRUE,
+                          sheet = 1, verbose = FALSE) {
 
   if (!file.exists(path)) {
     stop("Metadata file not found: ", path)
@@ -62,7 +68,7 @@ read_metadata <- function(path, counts = NULL, sheet = 1, verbose = FALSE) {
   }
 
   # --- Canonical column matching (case-insensitive) -------------------------
-  # The recognised metadata columns: `time` is required, the rest optional.
+  # The recognised metadata columns.
   canonical <- c("time", "group_1", "group_2", "group_3", "replicate")
 
   # Map each actual column name to a canonical name by lower-casing and
@@ -80,8 +86,8 @@ read_metadata <- function(path, counts = NULL, sheet = 1, verbose = FALSE) {
          "Please keep a single column per name.")
   }
 
-  # `time` is mandatory.
-  if (!"time" %in% matched) {
+  # `time` is required on the time-course path, optional on intergene.
+  if (require_time && !"time" %in% matched) {
     stop("Metadata must contain a 'time' column (got: ",
          paste(raw_names, collapse = ", "), ").")
   }
@@ -105,12 +111,10 @@ read_metadata <- function(path, counts = NULL, sheet = 1, verbose = FALSE) {
   }
 
   if (verbose) {
-    found_optional <- intersect(c("group_1", "group_2", "group_3", "replicate"),
-                                matched)
-    cat(sprintf("read_metadata: %d sample(s); time + [%s] from %s\n",
+    found <- intersect(canonical, matched)
+    cat(sprintf("read_metadata: %d sample(s); columns [%s] from %s\n",
                 nrow(df),
-                if (length(found_optional)) paste(found_optional, collapse = ", ")
-                else "no optional cols",
+                if (length(found)) paste(found, collapse = ", ") else "none recognised",
                 basename(path)))
   }
 

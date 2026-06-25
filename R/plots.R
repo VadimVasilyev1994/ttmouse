@@ -136,8 +136,23 @@ plot_sample_likelihoods <- function(object, sample_num,
          "(default is the model's stored Train_Data$LogThresh_Train).")
   }
   .check_sample_num(object, sample_num, train_or_test)
-  .call_plot_raw_likelis(object, sample_num = sample_num, logthresh = logthresh,
-                         train_or_test = train_or_test)
+
+  # Annotate with the sample's metadata when available. Only touch par()/draw
+  # the banner if there is a label, so the no-metadata path is unchanged.
+  label <- sample_label(object, sample_num, train_or_test)
+  if (nzchar(label)) {
+    op <- graphics::par(oma = c(0, 0, 2.5, 0))
+    on.exit(graphics::par(op), add = TRUE)
+  }
+
+  res <- .call_plot_raw_likelis(object, sample_num = sample_num,
+                                logthresh = logthresh,
+                                train_or_test = train_or_test)
+  if (nzchar(label)) {
+    graphics::mtext(paste0("(", label, ")"), outer = TRUE, side = 3,
+                    line = 0.8, cex = 0.9)
+  }
+  invisible(res)
 }
 
 #' Plot a sample's theta-calculation curves
@@ -164,6 +179,23 @@ plot_sample_curve <- function(object, sample_num,
          "(default is the model's stored Train_Data$LogThresh_Train).")
   }
   .check_sample_num(object, sample_num, train_or_test)
-  .call_plot_ind_curve(object, sample_num = sample_num, logthresh = logthresh,
-                       train_or_test = train_or_test)
+
+  # Annotate with the sample's metadata when available (see
+  # plot_sample_likelihoods). The banner is drawn on the active device after the
+  # underlying plot; the returned recordPlot() reflects the underlying function
+  # and does not include the banner.
+  label <- sample_label(object, sample_num, train_or_test)
+  if (nzchar(label)) {
+    op <- graphics::par(oma = c(0, 0, 2.5, 0))
+    on.exit(graphics::par(op), add = TRUE)
+  }
+
+  res <- .call_plot_ind_curve(object, sample_num = sample_num,
+                              logthresh = logthresh,
+                              train_or_test = train_or_test)
+  if (nzchar(label)) {
+    graphics::mtext(paste0("(", label, ")"), outer = TRUE, side = 3,
+                    line = 0.8, cex = 0.9)
+  }
+  res
 }
