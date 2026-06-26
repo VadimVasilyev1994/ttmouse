@@ -1,0 +1,19 @@
+# Keep the build context lean. The image needs: DESCRIPTION, NAMESPACE, R/,
+# inst/, man/, assets/, renv.lock, docker/. Everything below is host-specific,
+# rebuilt inside the image, or irrelevant at runtime.
+
+.git
+.gitignore
+.Rproj.user
+*.Rproj
+.Rhistory
+.RData
+.Ruserdata
+
+# Local renv working dirs (library/cache/sandbox) are host-specific and large --
+# the image rebuilds the library from renv.lock via docker/restore.R.
+renv/
+
+# One-off tooling and notes, not needed in the image.
+make_renv_lock.sh
+HANDOFF.md
