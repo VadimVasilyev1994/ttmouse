@@ -16,6 +16,7 @@ Roxygen: list(markdown = TRUE)
 Depends:
     R (>= 4.2.0)
 Imports:
+    graphics,
     DGEobj.utils,
     edgeR,
     openxlsx,
@@ -24,7 +25,8 @@ Imports:
     utils,
     plotly,
     shiny,
-    ggplot2
+    ggplot2,
+    bslib
 Suggests:
     testthat (>= 3.0.0),
     withr

@@ -79,16 +79,20 @@ ui <- fluidPage(
       verbatimTextOutput("status"),
       tabsetPanel(
         tabPanel("Results",             tableOutput("results_table")),
-        tabPanel("Training projection", plotlyOutput("plot_train", height = "500px")),
-        tabPanel("Test projection",     plotlyOutput("plot_test",  height = "500px")),
-        tabPanel("Sample likelihoods",  plotOutput("plot_likelis", height = "500px")),
-        tabPanel("Sample curve",        plotOutput("plot_curve",   height = "500px")),
+        tabPanel("Training projection",
+                 fluidRow(column(9, plotlyOutput("plot_train", height = "500px")))),
+        tabPanel("Test projection",
+                 fluidRow(column(9, plotlyOutput("plot_test", height = "500px")))),
+        tabPanel("Sample likelihoods",
+                 fluidRow(column(9, plotOutput("plot_likelis", height = "500px")))),
+        tabPanel("Sample curve",
+                 fluidRow(column(9, plotOutput("plot_curve", height = "500px")))),
         tabPanel("Training expression",
                  fluidRow(
                    column(6, uiOutput("train_gene_selector")),
                    column(6, uiOutput("train_group_selector"))
                  ),
-                 plotlyOutput("plot_train_gene", height = "450px"))
+                 fluidRow(column(9, plotlyOutput("plot_train_gene", height = "450px"))))
       )
     )
   )

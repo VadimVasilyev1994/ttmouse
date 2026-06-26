@@ -9,7 +9,8 @@ run_app(
   gene_lengths = NULL,
   host = "0.0.0.0",
   port = NULL,
-  launch.browser = interactive()
+  launch.browser = interactive(),
+  max_upload_mb = 50
 )
 }
 \arguments{
@@ -22,10 +23,19 @@ overriding the conventional top-level \code{gene_lengths.rds}.}
 \item{host}{Host passed to \code{\link[shiny:runApp]{shiny::runApp()}}; defaults to \code{"0.0.0.0"} so the
 app is reachable when containerised.}
 
-\item{port}{Port passed to \code{\link[shiny:runApp]{shiny::runApp()}}; \code{NULL} lets Shiny choose.}
+\item{port}{Port to listen on. When \code{NULL} (the default), the \code{PORT}
+environment variable is used if set (e.g. Cloud Run sets it); otherwise the
+port falls back to 7860 (the Hugging Face Spaces convention). This lets a
+single container serve on either platform unchanged. Pass a value to
+override.}
 
 \item{launch.browser}{Passed to \code{\link[shiny:runApp]{shiny::runApp()}}; defaults to \code{TRUE}
 interactively.}
+
+\item{max_upload_mb}{Maximum size, in megabytes, of an uploaded file; sets the
+\code{shiny.maxRequestSize} option (Shiny's own default is only 5 MB). Defaults
+to 50, comfortably covering typical count matrices; raise it for very large
+studies.}
 }
 \value{
 Invisibly \code{NULL}; the function runs the app until it is stopped.

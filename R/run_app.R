@@ -17,19 +17,34 @@
 #'   overriding the conventional top-level `gene_lengths.rds`.
 #' @param host Host passed to [shiny::runApp()]; defaults to `"0.0.0.0"` so the
 #'   app is reachable when containerised.
-#' @param port Port passed to [shiny::runApp()]; `NULL` lets Shiny choose.
+#' @param port Port to listen on. When `NULL` (the default), the `PORT`
+#'   environment variable is used if set (e.g. Cloud Run sets it); otherwise the
+#'   port falls back to 7860 (the Hugging Face Spaces convention). This lets a
+#'   single container serve on either platform unchanged. Pass a value to
+#'   override.
 #' @param launch.browser Passed to [shiny::runApp()]; defaults to `TRUE`
 #'   interactively.
+#' @param max_upload_mb Maximum size, in megabytes, of an uploaded file; sets the
+#'   `shiny.maxRequestSize` option (Shiny's own default is only 5 MB). Defaults
+#'   to 50, comfortably covering typical count matrices; raise it for very large
+#'   studies.
 #' @return Invisibly `NULL`; the function runs the app until it is stopped.
 #' @export
 run_app <- function(data_dir = NULL,
                     gene_lengths = NULL,
                     host = "0.0.0.0",
                     port = NULL,
-                    launch.browser = interactive()) {
+                    launch.browser = interactive(),
+                    max_upload_mb = 50) {
 
   if (!requireNamespace("shiny", quietly = TRUE)) {
     stop("The 'shiny' package is required to run the app.")
+  }
+
+  # Validate the upload cap up front (it is set as an option below).
+  if (!is.numeric(max_upload_mb) || length(max_upload_mb) != 1L ||
+      is.na(max_upload_mb) || max_upload_mb <= 0) {
+    stop("`max_upload_mb` must be a single positive number.")
   }
 
   # --- Discover + preload assets once (fail loudly at startup) -------------
@@ -41,8 +56,10 @@ run_app <- function(data_dir = NULL,
   })
   assets <- list(gene_lengths = readRDS(found$gene_lengths), organs = organs)
 
-  # Hand the preloaded assets to the app and restore the option on exit.
-  old <- options(ttmouse.assets = assets)
+  # Hand the preloaded assets to the app and cap the upload size; restore both
+  # options on exit. shiny.maxRequestSize is in bytes.
+  old <- options(ttmouse.assets    = assets,
+                 shiny.maxRequestSize = max_upload_mb * 1024^2)
   on.exit(options(old), add = TRUE)
 
   # --- Locate and launch the bundled app -----------------------------------
@@ -52,11 +69,18 @@ run_app <- function(data_dir = NULL,
          "Is ttmouse installed correctly?")
   }
 
+  # Resolve the listening port: an explicit `port` wins; otherwise honour the
+  # platform's PORT env var (Cloud Run sets it) and fall back to 7860, the
+  # Hugging Face Spaces convention, so one image serves on either platform.
   if (is.null(port)) {
-    shiny::runApp(app_dir, host = host, launch.browser = launch.browser)
-  } else {
-    shiny::runApp(app_dir, host = host, port = port,
-                  launch.browser = launch.browser)
+    env_port <- Sys.getenv("PORT", unset = "")
+    port <- if (nzchar(env_port)) suppressWarnings(as.integer(env_port)) else 7860L
   }
+  if (is.na(port)) {
+    stop("Could not resolve a numeric port (check the PORT environment variable).")
+  }
+
+  shiny::runApp(app_dir, host = host, port = port,
+                launch.browser = launch.browser)
   invisible(NULL)
 }
