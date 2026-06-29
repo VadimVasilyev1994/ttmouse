@@ -2564,7 +2564,7 @@
       "Author": "Catherine Loader [aut], Jiayang Sun [ctb], Lucent Technologies [cph], Andy Liaw [cre]",
       "Maintainer": "Andy Liaw <andy_liaw@merck.com>",
       "Description": "Local regression, likelihood and density estimation methods as described in the 1999 book by Loader.",
-      "Repository": "CRAN"
+      "Repository": "CRAN",
       "Depends": [
         "R (>= 4.1.0)"
       ],
@@ -3578,6 +3578,7 @@
       "Title": "Statistical Modeling",
       "Authors@R": "c(person(given = \"Gordon\", family = \"Smyth\", role = c(\"cre\", \"aut\"), email = \"smyth@wehi.edu.au\"), person(given = \"Lizhong\", family = \"Chen\", role = \"aut\"), person(given = \"Yifang\", family = \"Hu\", role = \"ctb\"), person(given = \"Peter\", family = \"Dunn\", role = \"ctb\"), person(given = \"Belinda\", family = \"Phipson\", role = \"ctb\"), person(given = \"Yunshun\", family = \"Chen\", role = \"ctb\"))",
       "Maintainer": "Gordon Smyth <smyth@wehi.edu.au>",
+      "Repository": "CRAN",
       "Depends": [
         "R (>= 3.0.0)"
       ],
