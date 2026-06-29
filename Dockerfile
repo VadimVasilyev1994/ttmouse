@@ -33,6 +33,13 @@ RUN Rscript docker/restore.R
 
 # --- Install the ttmouse package + bake the assets --------------------------
 COPY . .
+# Drop the renv project-activation files (.Rprofile + renv/) that renv::init()
+# created. Otherwise R sources .Rprofile at startup, runs renv/activate.R, and
+# switches to an empty renv *project* library -- pushing the site library (where
+# restore.R installed the dependencies and the line below installs ttmouse) off
+# the search path, so ttmouse isn't found. Deleting them makes both R CMD INSTALL
+# and the running container use the site library.
+RUN rm -f .Rprofile && rm -rf renv
 RUN R CMD INSTALL .
 
 # Assets live at /app/assets (gene_lengths.rds + one subdir per organ);
