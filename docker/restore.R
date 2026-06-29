@@ -15,6 +15,13 @@
 #    point at the P3M binary endpoint -- naming it anything else makes renv fall
 #    back to a source repo and compile everything.
 #
+#  * CRANsrc -> the full CRAN mirror, as a fallback. A few locked packages
+#    (e.g. statmod, locfit) are recorded with no `Repository` field, so renv has
+#    to search for them; P3M's rolling snapshot doesn't carry those exact
+#    versions, but cran.rstudio.com (with /src/contrib/Archive) does. This name
+#    doesn't match any package's recorded repo, so it's used only as a fallback
+#    search -- the bulk of CRAN packages still come from P3M as binaries.
+#
 #  * Bioconductor -> the *versioned* 3.22 release repositories. The lockfile
 #    recorded edgeR / limma / BiocVersion from r-universe, which only serves the
 #    current Bioconductor release; pinning to the versioned 3.22 repos keeps the
@@ -34,6 +41,10 @@ p3m_noble <- "https://p3m.dev/cran/__linux__/noble/latest"
 renv::restore(
   lockfile = "renv.lock",
   library  = .libPaths()[1],   # the image's site library
-  repos    = c(CRAN = p3m_noble, RSPM = p3m_noble),
+  repos    = c(
+    CRAN    = p3m_noble,                    # fast binaries for current versions
+    RSPM    = p3m_noble,
+    CRANsrc = "https://cran.rstudio.com"    # fallback: exact versions via CRAN + Archive
+  ),
   prompt   = FALSE
 )
