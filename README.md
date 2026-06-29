@@ -1,3 +1,15 @@
+---
+title: ttmouse
+emoji: 🐭
+colorFrom: blue
+colorTo: green
+sdk: docker
+app_port: 7860
+pinned: false
+license: mit
+short_description: Circadian clock phase & dysfunction from mouse RNA-seq
+---
+
 # ttmouse
 
 Engine for a public tool that projects raw **mouse RNA-seq count matrices** onto
