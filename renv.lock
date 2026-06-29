@@ -2564,6 +2564,7 @@
       "Author": "Catherine Loader [aut], Jiayang Sun [ctb], Lucent Technologies [cph], Andy Liaw [cre]",
       "Maintainer": "Andy Liaw <andy_liaw@merck.com>",
       "Description": "Local regression, likelihood and density estimation methods as described in the 1999 book by Loader.",
+      "Repository": "CRAN"
       "Depends": [
         "R (>= 4.1.0)"
       ],
