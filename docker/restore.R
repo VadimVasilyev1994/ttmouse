@@ -8,14 +8,18 @@
 # Two repository overrides matter:
 #
 #  * CRAN -> Posit P3M Linux binaries for Ubuntu 24.04 ("noble", the base image's
-#    distro). The ~100 CRAN dependencies install as prebuilt binaries (fast)
-#    instead of compiling. cran.rstudio.com is listed second as a source
-#    fallback for anything P3M doesn't carry.
+#    distro), so the ~100 CRAN dependencies install as prebuilt binaries (fast,
+#    and no compilation = no missing-system-library failures). renv matches each
+#    locked package to the repo whose NAME equals its recorded `Repository`
+#    field, which is "CRAN" (and "RSPM" for a few). Both names must therefore
+#    point at the P3M binary endpoint -- naming it anything else makes renv fall
+#    back to a source repo and compile everything.
 #
 #  * Bioconductor -> the *versioned* 3.22 release repositories. The lockfile
 #    recorded edgeR / limma / BiocVersion from r-universe, which only serves the
 #    current Bioconductor release; pinning to the versioned 3.22 repos keeps the
-#    restore reproducible after newer Bioconductor releases ship.
+#    restore reproducible after newer Bioconductor releases ship. (These few
+#    packages build from source, which is why the toolchain is in the image.)
 
 options(
   renv.bioconductor.repos = c(
@@ -26,12 +30,10 @@ options(
   )
 )
 
+p3m_noble <- "https://p3m.dev/cran/__linux__/noble/latest"
 renv::restore(
   lockfile = "renv.lock",
   library  = .libPaths()[1],   # the image's site library
-  repos    = c(
-    P3M  = "https://packagemanager.posit.co/cran/__linux__/noble/latest",
-    CRAN = "https://cran.rstudio.com"
-  ),
+  repos    = c(CRAN = p3m_noble, RSPM = p3m_noble),
   prompt   = FALSE
 )
