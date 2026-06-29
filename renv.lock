@@ -2557,7 +2557,6 @@
     "locfit": {
       "Package": "locfit",
       "Version": "1.5-9.12",
-      "Source": "Repository",
       "Title": "Local Regression, Likelihood and Density Estimation",
       "Date": "2025-03-05",
       "Authors@R": "c(person(\"Catherine\", \"Loader\", role = \"aut\"), person(\"Jiayang\", \"Sun\", role = \"ctb\"), person(\"Lucent Technologies\", role = \"cph\"), person(\"Andy\", \"Liaw\", role = \"cre\",  email=\"andy_liaw@merck.com\"))",
@@ -3573,7 +3572,6 @@
     "statmod": {
       "Package": "statmod",
       "Version": "1.5.2",
-      "Source": "Repository",
       "Date": "2026-05-17",
       "Title": "Statistical Modeling",
       "Authors@R": "c(person(given = \"Gordon\", family = \"Smyth\", role = c(\"cre\", \"aut\"), email = \"smyth@wehi.edu.au\"), person(given = \"Lizhong\", family = \"Chen\", role = \"aut\"), person(given = \"Yifang\", family = \"Hu\", role = \"ctb\"), person(given = \"Peter\", family = \"Dunn\", role = \"ctb\"), person(given = \"Belinda\", family = \"Phipson\", role = \"ctb\"), person(given = \"Yunshun\", family = \"Chen\", role = \"ctb\"))",
