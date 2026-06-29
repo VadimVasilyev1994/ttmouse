@@ -12,8 +12,8 @@ FROM rocker/r-ver:4.5.1
 # is `renv::sysreqs("ubuntu:24.04", report = TRUE, collapse = TRUE)` -- if the
 # build ever stops on a missing -dev library, regenerate from that and update.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      git \
-      libcurl4-openssl-dev libssl-dev libxml2-dev zlib1g-dev \
+      git cmake \
+      libcurl4-openssl-dev libssl-dev libxml2-dev zlib1g-dev libuv1-dev \
       libfontconfig1-dev libfreetype6-dev libpng-dev libtiff-dev libjpeg-dev \
       libharfbuzz-dev libfribidi-dev \
     && rm -rf /var/lib/apt/lists/*
