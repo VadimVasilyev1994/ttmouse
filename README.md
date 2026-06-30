@@ -42,6 +42,4 @@ devtools::check()      # R CMD check
 
 ## Status
 
-Engine functions are implemented and tested. Not yet built: the plot wrappers
-and CSV export, the metadata-file reader, the Shiny app (`inst/app/` +
-`run_app()`), and the Dockerfile. See `HANDOFF.md`.
+Engine functions are implemented and tested
