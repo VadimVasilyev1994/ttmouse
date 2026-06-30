@@ -76,7 +76,7 @@ ui <- fluidPage(
       downloadButton("download_csv", "Download results CSV")
     ),
     mainPanel(
-      verbatimTextOutput("status"),
+      uiOutput("status"),
       tabsetPanel(
         tabPanel("Results",             tableOutput("results_table")),
         tabPanel("Training projection",
@@ -104,9 +104,21 @@ ui <- fluidPage(
 server <- function(input, output, session) {
 
   # Holds the post-projection object and the model used, after a run.
-  state <- reactiveValues(object = NULL, model = NULL, status = "Awaiting input.")
+  # status_type is "info" normally and "error" when the message is a blocking
+  # error that should stand out (rendered in red below).
+  state <- reactiveValues(object = NULL, model = NULL,
+                          status = "Awaiting input.", status_type = "info")
 
-  output$status <- renderText(state$status)
+  # Status line. Kept in a <pre> to preserve the original monospace look and any
+  # line breaks in the message; coloured red when status_type is "error".
+  output$status <- renderUI({
+    style <- if (identical(state$status_type, "error")) {
+      "color:#c0392b; font-weight:600; margin:0;"   # red, blocking error
+    } else {
+      "margin:0;"
+    }
+    tags$pre(style = style, state$status)
+  })
 
   # The organ currently selected (or the only one available when the organ
   # selector is hidden). Resolves even before the selector renders.
@@ -145,6 +157,7 @@ server <- function(input, output, session) {
   # Run the full pipeline when the button is pressed.
   observeEvent(input$run, {
     state$object <- NULL  # clear any previous result
+    state$status_type <- "info"  # clear any prior error styling
 
     req(input$counts)
     is_timecourse <- input$model_choice == "timecourse"
@@ -173,6 +186,24 @@ server <- function(input, output, session) {
       } else if (is_timecourse) {
         state$status <- "Timecourse selected: please upload a metadata file."
         return(invisible())
+      }
+
+      # --- Time-course coverage check (block clearly if too narrow) --------
+      # Time-course normalisation scales each group across its own samples, so a
+      # group covering too small a time window is unreliable. Flag the offending
+      # group(s) and block projection (no result) so the user can amend the data.
+      if (is_timecourse) {
+        cov <- check_time_coverage(
+          test_time      = meta_args$test_time,
+          test_group_1   = meta_args$test_group_1,
+          test_group_2   = meta_args$test_group_2,
+          test_group_3   = meta_args$test_group_3,
+          test_replicate = meta_args$test_replicate)
+        if (!cov$ok) {
+          state$status      <- cov$summary
+          state$status_type <- "error"      # render the message in red
+          return(invisible())
+        }
       }
 
       # --- Project --------------------------------------------------------
