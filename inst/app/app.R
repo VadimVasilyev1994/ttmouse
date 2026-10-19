@@ -85,6 +85,10 @@ ui <- fluidPage(
                    column(4, uiOutput("results_y_selector")),
                    column(4, uiOutput("results_colour_selector"))
                  ),
+                 fluidRow(
+                   column(4, uiOutput("results_shape_selector")),
+                   column(4, uiOutput("results_facet_selector"))
+                 ),
                  fluidRow(column(9, plotlyOutput("plot_results", height = "500px")))),
         tabPanel("Training projection",
                  fluidRow(column(9, plotlyOutput("plot_train", height = "500px")))),
@@ -319,14 +323,30 @@ server <- function(input, output, session) {
                 selected = sel)
   })
 
+  # Shape and facet selectors: off ("None") by default.
+  output$results_shape_selector <- renderUI({
+    selectInput("results_shape", "Shape by",
+                choices = c("None" = "", results_vars()$shape), selected = "")
+  })
+
+  output$results_facet_selector <- renderUI({
+    selectInput("results_facet", "Facet by",
+                choices = c("None" = "", results_vars()$facet), selected = "")
+  })
+
   output$plot_results <- renderPlotly({
     v <- results_vars()
+    # TRUE when an optional selector is unset, "None", or a valid choice.
+    opt_ok <- function(value, choices) is.null(value) || value %in% c("", choices)
     # Wait until the selectors hold choices valid for the current results (they
     # can briefly hold the previous run's values while re-rendering).
     req(input$results_x %in% v$x, input$results_y %in% v$y,
-        is.null(input$results_colour) || input$results_colour %in% c("", v$colour))
+        opt_ok(input$results_colour, v$colour),
+        opt_ok(input$results_shape,  v$shape),
+        opt_ok(input$results_facet,  v$facet))
     plot_results(export_results(state$object), x = input$results_x,
                  y = input$results_y, colour = input$results_colour,
+                 shape = input$results_shape, facet = input$results_facet,
                  interactive = TRUE)
   })
 

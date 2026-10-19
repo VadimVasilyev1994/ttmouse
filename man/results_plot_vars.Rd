@@ -10,9 +10,10 @@ results_plot_vars(results)
 \item{results}{A data.frame from \code{\link[=export_results]{export_results()}}.}
 }
 \value{
-A list of character vectors: \code{x} (\code{"Sample"} followed by the numeric
-columns), \code{y} (the numeric columns) and \code{colour} (the grouping columns; may
-be empty).
+A list of character vectors: \code{x} (\code{"Sample"}, then the informative
+\code{Group_1/2/3} columns, then the numeric columns), \code{y} (the numeric
+columns), and \code{colour}, \code{shape} and \code{facet} (the informative grouping
+columns, including \code{Replicate}; may be empty).
 }
 \description{
 Lists which columns of an \code{\link[=export_results]{export_results()}} table can be offered for each

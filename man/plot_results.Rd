@@ -4,17 +4,32 @@
 \alias{plot_results}
 \title{Plot one result column against another}
 \usage{
-plot_results(results, x, y, colour = NULL, interactive = FALSE)
+plot_results(
+  results,
+  x,
+  y,
+  colour = NULL,
+  shape = NULL,
+  facet = NULL,
+  interactive = FALSE
+)
 }
 \arguments{
 \item{results}{A data.frame from \code{\link[=export_results]{export_results()}}.}
 
-\item{x}{Column for the x axis: \code{"Sample"} (one position per sample) or one
-of the numeric columns listed by \code{\link[=results_plot_vars]{results_plot_vars()}}.}
+\item{x}{Column for the x axis: \code{"Sample"} (one position per sample), a
+\code{Group_1/2/3} column (one position per group), or a numeric column, as
+listed by \code{\link[=results_plot_vars]{results_plot_vars()}}.}
 
 \item{y}{Numeric column for the y axis.}
 
 \item{colour}{Optional grouping column to colour by; \code{NULL} or \code{""} for none.}
+
+\item{shape}{Optional grouping column to set point shapes by (up to 12
+levels); \code{NULL} or \code{""} for none.}
+
+\item{facet}{Optional grouping column to split the plot into panels, one per
+level; \code{NULL} or \code{""} for none.}
 
 \item{interactive}{If \code{TRUE}, return an interactive plotly widget whose hover
 shows the sample name and values. Defaults to \code{FALSE} (a static ggplot).}
@@ -24,8 +39,14 @@ A ggplot object, or a plotly object when \code{interactive = TRUE}.
 }
 \description{
 Scatter plot of the per-sample results, one point per sample, optionally
-coloured by a grouping column. When \code{x} is \code{Actual_Time} and \code{y} is a
-predicted time (\code{time_1st_peak} or \code{weighted_mean_time_pred}) a dashed
-y = x line marks perfect prediction. Times are plotted as plain numbers
-(no wrapping at 24 h). Samples missing either value are left out.
+coloured, shaped and faceted by grouping columns. When \code{x} is \code{Actual_Time}
+and \code{y} is a predicted time (\code{time_1st_peak} or \code{weighted_mean_time_pred}) a
+dashed y = x line marks perfect prediction (in every facet). Times are
+plotted as plain numbers (no wrapping at 24 h). Samples missing either value
+are left out.
+}
+\details{
+When \code{x} is a grouping column, points are spread slightly sideways (a fixed,
+reproducible jitter) so samples in the same group do not hide each other;
+their y values are not changed.
 }

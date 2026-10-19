@@ -46,17 +46,22 @@ render_ok <- function(p) {
 
 test_that("results_plot_vars lists informative columns on the timecourse path", {
   v <- results_plot_vars(make_tc_results())
-  expect_equal(v$x, c("Sample", "time_1st_peak", "weighted_mean_time_pred",
+  # x: Sample, informative Group_1/2/3 (not Replicate), then numeric columns.
+  expect_equal(v$x, c("Sample", "Group_1", "time_1st_peak", "weighted_mean_time_pred",
                       "Theta", "Actual_Time", "Pred_Error"))
   expect_equal(v$y, c("time_1st_peak", "weighted_mean_time_pred",
                       "Theta", "Actual_Time", "Pred_Error"))
   expect_equal(v$colour, c("Group_1", "Replicate"))   # empty Group_2 left out
+  expect_equal(v$shape,  c("Group_1", "Replicate"))
+  expect_equal(v$facet,  c("Group_1", "Replicate"))
 })
 
 test_that("results_plot_vars offers only what exists on the intergene path", {
   v <- results_plot_vars(make_ig_results())
   expect_equal(v$x, c("Sample", "time_1st_peak", "weighted_mean_time_pred", "Theta"))
   expect_equal(v$colour, character(0))
+  expect_equal(v$shape,  character(0))
+  expect_equal(v$facet,  character(0))
 })
 
 test_that("an all-NA numeric column is not offered", {
@@ -119,15 +124,20 @@ test_that("empty group labels are shown as (unspecified)", {
   res <- make_tc_results()
   res$Group_1[1] <- ""
   p <- plot_results(res, x = "Theta", y = "Pred_Error", colour = "Group_1")
-  expect_true("(unspecified)" %in% p$data$colour)
+  expect_true("(unspecified)" %in% levels(p$data$colour))
 })
 
 test_that("unavailable columns give clear errors", {
   res <- make_ig_results()
-  expect_error(plot_results(res, x = "Actual_Time", y = "Theta"), "x axis")
-  expect_error(plot_results(res, x = "Sample", y = "Group_1"), "y axis")
+  expect_error(plot_results(res, x = "Actual_Time", y = "Theta"), "for the x axis")
+  expect_error(plot_results(res, x = "Group_1", y = "Theta"), "for the x axis")
+  expect_error(plot_results(res, x = "Sample", y = "Group_1"), "for the y axis")
   expect_error(plot_results(res, x = "Sample", y = "Theta", colour = "Group_1"),
-               "colour by")
+               "for colour; available: none")
+  expect_error(plot_results(res, x = "Sample", y = "Theta", shape = "Group_1"),
+               "for shape")
+  expect_error(plot_results(res, x = "Sample", y = "Theta", facet = "Group_1"),
+               "for facets")
 })
 
 test_that("hover text carries the sample name and values", {
@@ -146,4 +156,80 @@ test_that("interactive = TRUE returns a plotly object", {
   expect_s3_class(w, "plotly")
   # Building the widget exercises the ggplot -> plotly conversion end to end.
   expect_silent(plotly::plotly_build(w))
+})
+
+# ---------------------------------------------------------------------------
+# Group on x, shape_by, facet_by
+# ---------------------------------------------------------------------------
+
+test_that("a group column on x gives one position per group, with fixed jitter", {
+  p <- plot_results(make_tc_results(), x = "Group_1", y = "Theta")
+  expect_equal(levels(p$data$x), c("WT", "KO"))          # upload order
+  pos <- p$layers[[1]]$position
+  expect_s3_class(pos, "PositionJitter")
+  expect_equal(pos$height, 0)                             # y values untouched
+  # Same seed -> identical layout on every redraw.
+  b1 <- ggplot2::layer_data(p); b2 <- ggplot2::layer_data(p)
+  expect_equal(b1$x, b2$x)
+  expect_equal(b1$y, p$data$y)
+  expect_true(render_ok(p))
+})
+
+test_that("Sample and numeric x are not jittered", {
+  res <- make_tc_results()
+  expect_false(inherits(plot_results(res, "Sample", "Theta")$layers[[1]]$position,
+                        "PositionJitter"))
+  expect_false(inherits(plot_results(res, "Actual_Time", "Theta")$layers[[1]]$position,
+                        "PositionJitter"))
+})
+
+test_that("shape_by maps shapes and renders", {
+  p <- plot_results(make_tc_results(), x = "Theta", y = "Pred_Error",
+                    colour = "Group_1", shape = "Replicate")
+  expect_equal(levels(p$data$shape), c("1", "2"))
+  expect_true("shape" %in% names(p$mapping))
+  expect_equal(length(unique(ggplot2::layer_data(p)$shape)), 2L)
+  expect_true(render_ok(p))
+})
+
+test_that("more shape levels than the palette gives a clear error", {
+  res <- make_tc_results()
+  res$Group_1 <- paste0("g", 1:6)
+  res <- rbind(res, transform(res, Sample = paste0(Sample, "b"), Group_1 = paste0("h", 1:6)),
+               transform(res, Sample = paste0(Sample, "c"), Group_1 = paste0("k", 1:6)))
+  expect_error(plot_results(res, "Theta", "Pred_Error", shape = "Group_1"),
+               "18 levels; shapes can show at most 12")
+})
+
+test_that("facet_by gives one panel per level and keeps the y = x line in each", {
+  p <- plot_results(make_tc_results(), x = "Actual_Time",
+                    y = "weighted_mean_time_pred", facet = "Group_1")
+  built <- ggplot2::ggplot_build(p)
+  expect_equal(nrow(built$layout$layout), 2L)             # WT and KO panels
+  expect_true(inherits(p$layers[[1]]$geom, "GeomAbline"))
+  expect_true(render_ok(p))
+})
+
+test_that("hover lists each grouping column once", {
+  p <- plot_results(make_tc_results(), x = "Group_1", y = "Theta",
+                    colour = "Group_1", shape = "Replicate", facet = "Replicate")
+  h <- p$data$hover[1]
+  expect_equal(lengths(regmatches(h, gregexpr("Group_1:", h))), 1L)
+  expect_equal(lengths(regmatches(h, gregexpr("Replicate:", h))), 1L)
+})
+
+test_that("interactive plot with colour, shape and facets builds", {
+  skip_if_not_installed("plotly")
+  w <- plot_results(make_tc_results(), x = "Group_1", y = "Theta",
+                    colour = "Group_1", shape = "Replicate", facet = "Replicate",
+                    interactive = TRUE)
+  expect_s3_class(w, "plotly")
+  expect_silent(plotly::plotly_build(w))
+})
+
+test_that("legends and facet panels follow upload order, not alphabetical", {
+  p <- plot_results(make_tc_results(), x = "Theta", y = "Pred_Error",
+                    colour = "Group_1", facet = "Group_1")
+  expect_equal(levels(p$data$colour), c("WT", "KO"))
+  expect_equal(levels(p$data$facet),  c("WT", "KO"))
 })
