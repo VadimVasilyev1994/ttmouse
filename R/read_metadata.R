@@ -17,6 +17,20 @@
 #' does NOT reorder rows. When `counts` is supplied it only checks that the
 #' number of metadata rows equals the number of samples.
 #'
+#' Time parsing: a numeric `time` column is used unchanged. A text `time`
+#' column is converted to numeric hours, accepting only three unambiguous forms
+#' (case-insensitive, surrounding whitespace ignored): a plain number (`4`,
+#' `04`, `4.5`), `ZT<number>` (`ZT4`, `zt 04`) or `CT<number>` (`CT12`). Empty
+#' cells are treated as missing. Any other value (e.g. `4h`, `T4`, `ZT4h`) is
+#' not guessed at:
+#' * on the time-course path (`require_time = TRUE`) it is an error, raised
+#'   with class `ttmouse_time_error`, because time drives the normalisation;
+#' * on the intergene path (`require_time = FALSE`) it is a warning, and those
+#'   samples are given a missing (`NA`) time.
+#'
+#' A column mixing `ZT` and `CT` labels is accepted (both read as hours) with a
+#' warning, since the two usually denote different lighting conditions.
+#'
 #' @param path Path to the uploaded `.csv` or `.xlsx` metadata file.
 #' @param counts Optional count matrix (genes x samples), e.g. from
 #'   [read_counts()]. When supplied, the number of metadata rows is checked
@@ -30,7 +44,7 @@
 #'
 #' @return A data.frame with one row per sample; recognised columns renamed to
 #'   their canonical names (`time`, `group_1`, `group_2`, `group_3`,
-#'   `replicate`).
+#'   `replicate`), with `time` (when present) as numeric hours.
 #' @export
 read_metadata <- function(path, counts = NULL, require_time = TRUE,
                           sheet = 1, verbose = FALSE) {
@@ -110,6 +124,35 @@ read_metadata <- function(path, counts = NULL, require_time = TRUE,
     }
   }
 
+  # --- Time column -> numeric hours (strict ZT/CT parsing) -------------------
+  if ("time" %in% colnames(df)) {
+    parsed <- parse_metadata_time(df[["time"]])
+
+    # Values in an unrecognised format are never guessed at.
+    if (parsed$n_unrecognised > 0L) {
+      msg <- sprintf(
+        "Time column: %d sample(s) have a time in an unrecognised format (%s). %s",
+        parsed$n_unrecognised, format_examples(parsed$unrecognised),
+        TIME_FORMAT_HINT)
+      if (require_time) {
+        # Time-course path: time drives the normalisation, so stop here.
+        stop_time_error(paste(msg, "Please correct the time column and re-upload."))
+      }
+      # Intergene path: time is optional, so continue with those times missing.
+      warning(msg, " Those samples were given no time; the projection continues.",
+              call. = FALSE)
+    }
+
+    # ZT and CT in one column usually means mixed lighting conditions.
+    if (parsed$n_zt > 0L && parsed$n_ct > 0L) {
+      warning(sprintf(
+        "Time column mixes ZT (%d sample(s)) and CT (%d sample(s)) labels; both were read as hours. Please check this is intended.",
+        parsed$n_zt, parsed$n_ct), call. = FALSE)
+    }
+
+    df[["time"]] <- parsed$time
+  }
+
   if (verbose) {
     found <- intersect(canonical, matched)
     cat(sprintf("read_metadata: %d sample(s); columns [%s] from %s\n",
@@ -119,4 +162,84 @@ read_metadata <- function(path, counts = NULL, require_time = TRUE,
   }
 
   df
+}
+
+# ---------------------------------------------------------------------------
+# Time parsing helpers (internal)
+# ---------------------------------------------------------------------------
+
+#' Accepted time formats, quoted in time-format messages
+#' @keywords internal
+#' @noRd
+TIME_FORMAT_HINT <- paste(
+  "Accepted formats: a number of hours (e.g. 4), ZT<number> or CT<number>",
+  "(e.g. ZT4, CT12; not case-sensitive).")
+
+#' Parse a metadata time column into numeric hours (strict)
+#'
+#' Accepts only three unambiguous forms, matched case-insensitively and ignoring
+#' surrounding whitespace: a plain number (`4`, `04`, `4.5`, `-2`), `ZT<number>`
+#' (`ZT4`, `zt 04`) or `CT<number>` (`CT12`). Anything else is left as `NA` and
+#' reported, so the caller decides whether to stop or warn. Empty cells and `NA`
+#' are treated as missing and are not reported.
+#'
+#' @param x The raw `time` column as read from the file.
+#' @return A list with `time` (numeric, one value per sample), `unrecognised`
+#'   (the distinct unrecognised values), `n_unrecognised` (number of samples
+#'   with one), and `n_zt` / `n_ct` (number of samples using each prefix).
+#' @keywords internal
+#' @noRd
+parse_metadata_time <- function(x) {
+  # Already numeric (a numeric CSV/XLSX column): nothing to parse.
+  if (is.numeric(x)) {
+    return(list(time = x, unrecognised = character(0), n_unrecognised = 0L,
+                n_zt = 0L, n_ct = 0L))
+  }
+
+  val     <- trimws(as.character(x))
+  missing <- is.na(val) | !nzchar(val)
+
+  # An unsigned decimal number: 4, 04, 4.5 or .5 (no exponents, no units).
+  num <- "([0-9]+(\\.[0-9]+)?|\\.[0-9]+)"
+
+  # The three accepted forms; anything else matches none of them.
+  is_plain <- grepl(paste0("^-?", num, "$"), val)
+  is_zt    <- grepl(paste0("^zt[[:space:]]*", num, "$"), val, ignore.case = TRUE)
+  is_ct    <- grepl(paste0("^ct[[:space:]]*", num, "$"), val, ignore.case = TRUE)
+  prefixed <- is_zt | is_ct
+
+  time <- rep(NA_real_, length(val))
+  time[is_plain] <- as.numeric(val[is_plain])
+  # Drop the two-letter prefix (and any space after it), keep the number.
+  time[prefixed] <- as.numeric(sub("^[[:alpha:]]{2}[[:space:]]*", "",
+                                   val[prefixed]))
+
+  bad <- !missing & !is_plain & !prefixed
+  list(time           = time,
+       unrecognised   = unique(val[bad]),
+       n_unrecognised = sum(bad),
+       n_zt           = sum(is_zt),
+       n_ct           = sum(is_ct))
+}
+
+#' Quote a few example values for a message: "'4h', 'T8' and 3 more"
+#'
+#' Keeps messages short when many values are affected.
+#' @keywords internal
+#' @noRd
+format_examples <- function(values, max_show = 3L) {
+  shown <- paste0("'", utils::head(values, max_show), "'", collapse = ", ")
+  extra <- length(values) - max_show
+  if (extra > 0L) paste0(shown, " and ", extra, " more") else shown
+}
+
+#' Signal a time-format error with its own condition class
+#'
+#' An ordinary error, but classed `ttmouse_time_error` so the app can show it as
+#' a blocking (red) message.
+#' @keywords internal
+#' @noRd
+stop_time_error <- function(message) {
+  stop(structure(class = c("ttmouse_time_error", "error", "condition"),
+                 list(message = message, call = NULL)))
 }

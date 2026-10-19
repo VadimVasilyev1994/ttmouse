@@ -31,7 +31,7 @@ all of its columns are optional.}
 \value{
 A data.frame with one row per sample; recognised columns renamed to
 their canonical names (\code{time}, \code{group_1}, \code{group_2}, \code{group_3},
-\code{replicate}).
+\code{replicate}), with \code{time} (when present) as numeric hours.
 }
 \description{
 Reads the per-sample metadata file (CSV or XLSX) that accompanies a count
@@ -51,4 +51,20 @@ Row order is the caller's responsibility: the metadata rows must already be
 in the same order as the columns (samples) of the count matrix. This function
 does NOT reorder rows. When \code{counts} is supplied it only checks that the
 number of metadata rows equals the number of samples.
+
+Time parsing: a numeric \code{time} column is used unchanged. A text \code{time}
+column is converted to numeric hours, accepting only three unambiguous forms
+(case-insensitive, surrounding whitespace ignored): a plain number (\code{4},
+\code{04}, \code{4.5}), \verb{ZT<number>} (\code{ZT4}, \verb{zt 04}) or \verb{CT<number>} (\code{CT12}). Empty
+cells are treated as missing. Any other value (e.g. \verb{4h}, \code{T4}, \code{ZT4h}) is
+not guessed at:
+\itemize{
+\item on the time-course path (\code{require_time = TRUE}) it is an error, raised
+with class \code{ttmouse_time_error}, because time drives the normalisation;
+\item on the intergene path (\code{require_time = FALSE}) it is a warning, and those
+samples are given a missing (\code{NA}) time.
+}
+
+A column mixing \code{ZT} and \code{CT} labels is accepted (both read as hours) with a
+warning, since the two usually denote different lighting conditions.
 }

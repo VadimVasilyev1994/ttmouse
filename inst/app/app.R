@@ -79,6 +79,13 @@ ui <- fluidPage(
       uiOutput("status"),
       tabsetPanel(
         tabPanel("Results",             tableOutput("results_table")),
+        tabPanel("Results plot",
+                 fluidRow(
+                   column(4, uiOutput("results_x_selector")),
+                   column(4, uiOutput("results_y_selector")),
+                   column(4, uiOutput("results_colour_selector"))
+                 ),
+                 fluidRow(column(9, plotlyOutput("plot_results", height = "500px")))),
         tabPanel("Training projection",
                  fluidRow(column(9, plotlyOutput("plot_train", height = "500px")))),
         tabPanel("Test projection",
@@ -105,19 +112,28 @@ server <- function(input, output, session) {
 
   # Holds the post-projection object and the model used, after a run.
   # status_type is "info" normally and "error" when the message is a blocking
-  # error that should stand out (rendered in red below).
+  # error that should stand out (rendered in red below). warnings holds any
+  # non-blocking warnings from the last run (rendered in amber below the status).
   state <- reactiveValues(object = NULL, model = NULL,
-                          status = "Awaiting input.", status_type = "info")
+                          status = "Awaiting input.", status_type = "info",
+                          warnings = character(0))
 
   # Status line. Kept in a <pre> to preserve the original monospace look and any
   # line breaks in the message; coloured red when status_type is "error".
+  # Long messages wrap (pre-wrap) rather than scrolling sideways.
   output$status <- renderUI({
     style <- if (identical(state$status_type, "error")) {
-      "color:#c0392b; font-weight:600; margin:0;"   # red, blocking error
+      "color:#c0392b; font-weight:600; margin:0; white-space:pre-wrap;"   # red, blocking error
     } else {
       "margin:0;"
     }
-    tags$pre(style = style, state$status)
+    # Warnings: one amber line each, under the status, so they are visible but
+    # do not replace the main message.
+    warn <- if (length(state$warnings)) {
+      tags$pre(style = "color:#9a6700; font-weight:600; margin:0; white-space:pre-wrap;",
+               paste("Warning:", state$warnings, collapse = "\n"))
+    }
+    tagList(tags$pre(style = style, state$status), warn)
   })
 
   # The organ currently selected (or the only one available when the organ
@@ -158,6 +174,7 @@ server <- function(input, output, session) {
   observeEvent(input$run, {
     state$object <- NULL  # clear any previous result
     state$status_type <- "info"  # clear any prior error styling
+    state$warnings <- character(0)  # clear any prior warnings
 
     req(input$counts)
     is_timecourse <- input$model_choice == "timecourse"
@@ -180,8 +197,16 @@ server <- function(input, output, session) {
       # if provided, the same columns are checked but nothing is required.
       meta_args <- list()
       if (!is.null(input$metadata)) {
-        md <- read_metadata(upload_with_ext(input$metadata), counts = counts,
-                            require_time = is_timecourse)
+        # Non-blocking warnings (e.g. unrecognised time formats on intergene,
+        # or mixed ZT/CT labels) are collected for display under the status
+        # line instead of being lost in the console.
+        md <- withCallingHandlers(
+          read_metadata(upload_with_ext(input$metadata), counts = counts,
+                        require_time = is_timecourse),
+          warning = function(w) {
+            state$warnings <- c(state$warnings, conditionMessage(w))
+            invokeRestart("muffleWarning")
+          })
         meta_args <- metadata_to_projection_args(md, require_groups = is_timecourse)
       } else if (is_timecourse) {
         state$status <- "Timecourse selected: please upload a metadata file."
@@ -217,6 +242,8 @@ server <- function(input, output, session) {
     },
     error = function(e) {
       state$status <- paste("Error:", conditionMessage(e))
+      # Time-format problems block the time-course path: show them in red.
+      if (inherits(e, "ttmouse_time_error")) state$status_type <- "error"
     })
   })
 
@@ -251,6 +278,46 @@ server <- function(input, output, session) {
       export_results(state$object, path = file)
     }
   )
+
+  # --- Results plot (x / y / colour builder over the exported results) -----
+  # Column choices for the three selectors, from the current results table.
+  results_vars <- reactive({
+    req(state$object)
+    results_plot_vars(export_results(state$object))
+  })
+
+  output$results_x_selector <- renderUI({
+    v <- results_vars()$x
+    # Default: actual time when the metadata supplied it, otherwise per sample.
+    sel <- if ("Actual_Time" %in% v) "Actual_Time" else "Sample"
+    selectInput("results_x", "x axis", choices = v, selected = sel)
+  })
+
+  output$results_y_selector <- renderUI({
+    v <- results_vars()$y
+    req(length(v) > 0)
+    sel <- if ("weighted_mean_time_pred" %in% v) "weighted_mean_time_pred" else v[[1]]
+    selectInput("results_y", "y axis", choices = v, selected = sel)
+  })
+
+  output$results_colour_selector <- renderUI({
+    v <- results_vars()$colour
+    # "" means no colouring; labelled "None" so the choice is explicit.
+    sel <- if ("Group_1" %in% v) "Group_1" else ""
+    selectInput("results_colour", "Colour by", choices = c("None" = "", v),
+                selected = sel)
+  })
+
+  output$plot_results <- renderPlotly({
+    v <- results_vars()
+    # Wait until the selectors hold choices valid for the current results (they
+    # can briefly hold the previous run's values while re-rendering).
+    req(input$results_x %in% v$x, input$results_y %in% v$y,
+        is.null(input$results_colour) || input$results_colour %in% c("", v$colour))
+    plot_results(export_results(state$object), x = input$results_x,
+                 y = input$results_y, colour = input$results_colour,
+                 interactive = TRUE)
+  })
 
   # 3D training projection (available once a model has been used).
   output$plot_train <- renderPlotly({
