@@ -19,7 +19,7 @@
 #    stays reproducible after newer Bioconductor releases ship. (edgeR / limma /
 #    BiocVersion build from source, which is why the toolchain is in the image.)
 
-p3m_noble <- "https://p3m.dev/cran/__linux__/noble/latest"
+p3m_noble <- "https://p3m.dev/cran/__linux__/noble/2026-06-30"
 
 options(
   renv.bioconductor.repos = c(
