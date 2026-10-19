@@ -33,6 +33,30 @@ upload_with_ext <- function(upload) {
   dest
 }
 
+# Render markdown text to HTML (commonmark, via shiny), with every link opening
+# in a new browser tab so following one never navigates away from a running
+# session and its results.
+md_to_html <- function(text) {
+  html <- as.character(shiny::markdown(text))
+  HTML(gsub("<a href=", '<a target="_blank" rel="noopener" href=', html, fixed = TRUE))
+}
+
+# About / help text for the landing tab. Kept in about.md (next to this file) so
+# it can be edited without touching the R code; read once at startup.
+.about_file <- "about.md"
+if (!file.exists(.about_file)) {
+  stop("About text not found (inst/app/about.md). Is ttmouse installed correctly?")
+}
+.about_html <- md_to_html(paste(readLines(.about_file, encoding = "UTF-8", warn = FALSE),
+                                collapse = "\n"))
+
+# Access / licence statement, shown in the footer under every tab.
+.footer_html <- md_to_html(paste(
+  "ttmouse is free and open to all users, with no login required. Source code:",
+  "[github.com/VadimVasilyev1994/ttmouse](https://github.com/VadimVasilyev1994/ttmouse)",
+  "(MIT licence). Uploaded files are used only to compute your results and are",
+  "not kept after your session ends."))
+
 # ---------------------------------------------------------------------------
 # UI
 # ---------------------------------------------------------------------------
@@ -48,6 +72,19 @@ ui <- fluidPage(
     success   = "#2a9d8f",   # teal green
     info      = "#2c7da0"
   ),
+  # Styling for the About tab (readable line length and spacing) and the footer
+  # (small and muted, so it is visible without competing with the results).
+  tags$head(tags$style(HTML("
+    .tt-about { max-width: 780px; line-height: 1.6; padding: 1.25rem 0 0.5rem; }
+    .tt-about h2 { font-size: 1.45rem; color: #14506e; margin-bottom: 0.75rem; }
+    .tt-about h3 { font-size: 1.1rem; color: #14506e; margin-top: 1.5rem; }
+    .tt-about li { margin-bottom: 0.45rem; }
+    .tt-about code { color: #1c2b36; background: #f1f4f6; padding: 0 0.25rem;
+                     border-radius: 3px; }
+    .tt-footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;
+                 font-size: 0.85rem; color: #495d6b; }
+    .tt-footer p { margin-bottom: 0.5rem; }
+  "))),
   titlePanel("ttmouse - circadian clock projection"),
   sidebarLayout(
     sidebarPanel(
@@ -77,7 +114,11 @@ ui <- fluidPage(
     ),
     mainPanel(
       uiOutput("status"),
+      # About is the first tab and the landing page; after a successful run the
+      # server switches to Results (see the run observer).
       tabsetPanel(
+        id = "main_tabs", selected = "About",
+        tabPanel("About", div(class = "tt-about", .about_html)),
         tabPanel("Results",             tableOutput("results_table")),
         tabPanel("Results plot",
                  fluidRow(
@@ -104,7 +145,9 @@ ui <- fluidPage(
                    column(6, uiOutput("train_group_selector"))
                  ),
                  fluidRow(column(9, plotlyOutput("plot_train_gene", height = "450px"))))
-      )
+      ),
+      # Access / licence statement, visible under every tab.
+      div(class = "tt-footer", .footer_html)
     )
   )
 )
@@ -253,6 +296,8 @@ server <- function(input, output, session) {
         setProgress(1)
         state$status <- paste(check$summary, "Projection complete.",
                               sprintf("%d sample(s).", ncol(expr)))
+        # Move the user from the About landing page to their results.
+        updateTabsetPanel(session, "main_tabs", selected = "Results")
       },
       error = function(e) {
         state$status <- paste("Error:", conditionMessage(e))
