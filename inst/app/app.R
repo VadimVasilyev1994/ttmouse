@@ -180,70 +180,81 @@ server <- function(input, output, session) {
     is_timecourse <- input$model_choice == "timecourse"
     model <- current_model()
 
-    tryCatch({
-      # --- Read + preprocess ---------------------------------------------
-      counts <- read_counts(upload_with_ext(input$counts))
-      expr   <- preprocess_counts(counts, gene_lengths = .assets$gene_lengths)
+    # Progress notification for the whole run, so users can see the projection
+    # is working (the status line only updates once the run has finished).
+    # Closed automatically when the run ends, including early stops and errors.
+    withProgress(message = "Running projection. Please do not refresh the page.",
+                 value = 0, {
+      tryCatch({
+        # --- Read + preprocess ---------------------------------------------
+        setProgress(0.1, detail = "Reading and preprocessing counts")
+        counts <- read_counts(upload_with_ext(input$counts))
+        expr   <- preprocess_counts(counts, gene_lengths = .assets$gene_lengths)
 
-      # --- Gene check (block clearly if genes are missing) ----------------
-      check <- validate_genes(model, expr)
-      if (!check$ok) {
-        state$status <- paste("Cannot project:", check$summary)
-        return(invisible())
-      }
-
-      # --- Metadata -> projection args ------------------------------------
-      # Timecourse: metadata required (time + >= 1 group). Intergene: optional;
-      # if provided, the same columns are checked but nothing is required.
-      meta_args <- list()
-      if (!is.null(input$metadata)) {
-        # Non-blocking warnings (e.g. unrecognised time formats on intergene,
-        # or mixed ZT/CT labels) are collected for display under the status
-        # line instead of being lost in the console.
-        md <- withCallingHandlers(
-          read_metadata(upload_with_ext(input$metadata), counts = counts,
-                        require_time = is_timecourse),
-          warning = function(w) {
-            state$warnings <- c(state$warnings, conditionMessage(w))
-            invokeRestart("muffleWarning")
-          })
-        meta_args <- metadata_to_projection_args(md, require_groups = is_timecourse)
-      } else if (is_timecourse) {
-        state$status <- "Timecourse selected: please upload a metadata file."
-        return(invisible())
-      }
-
-      # --- Time-course coverage check (block clearly if too narrow) --------
-      # Time-course normalisation scales each group across its own samples, so a
-      # group covering too small a time window is unreliable. Flag the offending
-      # group(s) and block projection (no result) so the user can amend the data.
-      if (is_timecourse) {
-        cov <- check_time_coverage(
-          test_time      = meta_args$test_time,
-          test_group_1   = meta_args$test_group_1,
-          test_group_2   = meta_args$test_group_2,
-          test_group_3   = meta_args$test_group_3,
-          test_replicate = meta_args$test_replicate)
-        if (!cov$ok) {
-          state$status      <- cov$summary
-          state$status_type <- "error"      # render the message in red
+        # --- Gene check (block clearly if genes are missing) ----------------
+        setProgress(0.3, detail = "Checking genes")
+        check <- validate_genes(model, expr)
+        if (!check$ok) {
+          state$status <- paste("Cannot project:", check$summary)
           return(invisible())
         }
-      }
 
-      # --- Project --------------------------------------------------------
-      object <- do.call(project_test_data,
-                        c(list(model = model, expr_matrix = expr), meta_args))
+        # --- Metadata -> projection args ------------------------------------
+        setProgress(0.4, detail = "Reading metadata")
+        # Timecourse: metadata required (time + >= 1 group). Intergene: optional;
+        # if provided, the same columns are checked but nothing is required.
+        meta_args <- list()
+        if (!is.null(input$metadata)) {
+          # Non-blocking warnings (e.g. unrecognised time formats on intergene,
+          # or mixed ZT/CT labels) are collected for display under the status
+          # line instead of being lost in the console.
+          md <- withCallingHandlers(
+            read_metadata(upload_with_ext(input$metadata), counts = counts,
+                          require_time = is_timecourse),
+            warning = function(w) {
+              state$warnings <- c(state$warnings, conditionMessage(w))
+              invokeRestart("muffleWarning")
+            })
+          meta_args <- metadata_to_projection_args(md, require_groups = is_timecourse)
+        } else if (is_timecourse) {
+          state$status <- "Timecourse selected: please upload a metadata file."
+          return(invisible())
+        }
 
-      state$object <- object
-      state$model  <- model
-      state$status <- paste(check$summary, "Projection complete.",
-                            sprintf("%d sample(s).", ncol(expr)))
-    },
-    error = function(e) {
-      state$status <- paste("Error:", conditionMessage(e))
-      # Time-format problems block the time-course path: show them in red.
-      if (inherits(e, "ttmouse_time_error")) state$status_type <- "error"
+        # --- Time-course coverage check (block clearly if too narrow) --------
+        # Time-course normalisation scales each group across its own samples, so a
+        # group covering too small a time window is unreliable. Flag the offending
+        # group(s) and block projection (no result) so the user can amend the data.
+        if (is_timecourse) {
+          cov <- check_time_coverage(
+            test_time      = meta_args$test_time,
+            test_group_1   = meta_args$test_group_1,
+            test_group_2   = meta_args$test_group_2,
+            test_group_3   = meta_args$test_group_3,
+            test_replicate = meta_args$test_replicate)
+          if (!cov$ok) {
+            state$status      <- cov$summary
+            state$status_type <- "error"      # render the message in red
+            return(invisible())
+          }
+        }
+
+        # --- Project --------------------------------------------------------
+        setProgress(0.5, detail = "Projecting onto the model")
+        object <- do.call(project_test_data,
+                          c(list(model = model, expr_matrix = expr), meta_args))
+
+        state$object <- object
+        state$model  <- model
+        setProgress(1)
+        state$status <- paste(check$summary, "Projection complete.",
+                              sprintf("%d sample(s).", ncol(expr)))
+      },
+      error = function(e) {
+        state$status <- paste("Error:", conditionMessage(e))
+        # Time-format problems block the time-course path: show them in red.
+        if (inherits(e, "ttmouse_time_error")) state$status_type <- "error"
+      })
     })
   })
 
