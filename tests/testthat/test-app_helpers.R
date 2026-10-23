@@ -85,6 +85,48 @@ test_that("an explicit gene_lengths path overrides the conventional location", {
 })
 
 # ---------------------------------------------------------------------------
+# discover_assets() -- example datasets
+# ---------------------------------------------------------------------------
+
+# Add an example folder under `organ`, creating the given files.
+add_example <- function(d, organ, name,
+                        files = c("counts.xlsx", "metadata.xlsx", "description.md")) {
+  ex <- file.path(d, organ, "examples", name)
+  dir.create(ex, recursive = TRUE)
+  for (f in files) file.create(file.path(ex, f))
+  ex
+}
+
+test_that("examples are discovered per organ, with their three file paths", {
+  d <- make_data_dir()
+  add_example(d, "liver", "GSE1")
+  found <- discover_assets(data_dir = d)
+  expect_equal(names(found$examples), "liver")        # scn has none
+  expect_equal(names(found$examples$liver), "GSE1")
+  paths <- found$examples$liver$GSE1
+  expect_setequal(names(paths), c("counts", "metadata", "description"))
+  expect_true(all(file.exists(unlist(paths))))
+  expect_equal(basename(paths$counts), "counts.xlsx")
+})
+
+test_that("no examples folder gives an empty examples list", {
+  found <- discover_assets(data_dir = make_data_dir())
+  expect_length(found$examples, 0)
+})
+
+test_that("an incomplete example is an error at discovery", {
+  d <- make_data_dir(organs = list(liver = "intergene"))
+  add_example(d, "liver", "GSE1", files = "counts.xlsx")
+  expect_error(discover_assets(data_dir = d), "incomplete")
+})
+
+test_that("an examples folder is not mistaken for an organ", {
+  d <- make_data_dir(organs = list(liver = "intergene"))
+  add_example(d, "liver", "GSE1")
+  expect_equal(names(discover_assets(data_dir = d)$organs), "liver")
+})
+
+# ---------------------------------------------------------------------------
 # metadata_to_projection_args() -- timecourse path (require_groups = TRUE)
 # ---------------------------------------------------------------------------
 

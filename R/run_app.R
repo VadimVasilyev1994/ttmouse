@@ -2,7 +2,9 @@
 #'
 #' Discovers and preloads the runtime assets once at startup -- the shared
 #' gene-length table and every organ's models -- then launches the bundled Shiny
-#' app. Preloaded assets are passed to the app via the `ttmouse.assets` option
+#' app. Example datasets are passed as file paths only (they are read on each
+#' run, through the same pipeline as uploads). Preloaded assets are passed to
+#' the app via the `ttmouse.assets` option
 #' and shared across sessions, so they are read from disk only once.
 #'
 #' Assets are located by [discover_assets()]: pass `data_dir` (containing
@@ -54,7 +56,8 @@ run_app <- function(data_dir = NULL,
   organs <- lapply(found$organs, function(org) {
     lapply(org, load_model)            # structural validation inside load_model
   })
-  assets <- list(gene_lengths = readRDS(found$gene_lengths), organs = organs)
+  assets <- list(gene_lengths = readRDS(found$gene_lengths), organs = organs,
+                 examples = found$examples)
 
   # Hand the preloaded assets to the app and cap the upload size; restore both
   # options on exit. shiny.maxRequestSize is in bytes.

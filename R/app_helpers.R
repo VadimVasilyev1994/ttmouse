@@ -3,7 +3,7 @@
 # (shared gene lengths + one subdirectory of models per organ);
 # metadata_to_projection_args() maps a metadata table to project_test_data() args.
 
-#' Discover the runtime data assets (organ models + shared gene lengths)
+#' Discover the runtime data assets (organ models, gene lengths, examples)
 #'
 #' Resolves the data directory (the `data_dir` argument, else the
 #' `TTMOUSE_DATA_DIR` environment variable) and discovers the assets within it: a
@@ -12,11 +12,19 @@
 #' has at least one of the two model files; an organ may provide only one type. A
 #' single organ is fine (no error).
 #'
+#' An organ may also hold an `examples/` folder with one subdirectory per example
+#' dataset, named after the dataset (e.g. its GEO accession). Each must contain
+#' `counts.xlsx`, `metadata.xlsx` and `description.md`; a missing file is an
+#' error, so an incomplete example fails at startup rather than when a user
+#' selects it. Examples are only collected for organs that have models.
+#'
 #' Expected layout:
 #' \preformatted{
 #' data_dir/
 #'   gene_lengths.rds        # shared, organ-independent
 #'   liver/  intergene.rds  timecourse.rds
+#'     examples/
+#'       GSE190939/  counts.xlsx  metadata.xlsx  description.md
 #'   scn/    intergene.rds  timecourse.rds
 #' }
 #'
@@ -24,9 +32,11 @@
 #'   subdirectories; defaults to the `TTMOUSE_DATA_DIR` environment variable.
 #' @param gene_lengths Optional explicit path to the gene-length table,
 #'   overriding the conventional top-level `gene_lengths.rds`.
-#' @return A list with `gene_lengths` (a verified file path) and `organs` (a
+#' @return A list with `gene_lengths` (a verified file path), `organs` (a
 #'   named list; each organ is itself a named list of the model file paths that
-#'   exist, among `intergene` and `timecourse`).
+#'   exist, among `intergene` and `timecourse`) and `examples` (a named list by
+#'   organ, holding only organs that have examples; each is a named list of
+#'   examples, each a list of `counts`, `metadata` and `description` paths).
 #' @export
 discover_assets <- function(data_dir = NULL, gene_lengths = NULL) {
 
@@ -47,8 +57,10 @@ discover_assets <- function(data_dir = NULL, gene_lengths = NULL) {
   }
 
   # --- One subdirectory per organ; keep those with >= 1 model file ----------
+  # Example datasets are collected alongside, for the organs that are kept.
   model_files <- c(intergene = "intergene.rds", timecourse = "timecourse.rds")
-  organs <- list()
+  organs   <- list()
+  examples <- list()
   if (!is.null(data_dir)) {
     subdirs <- list.dirs(data_dir, recursive = FALSE, full.names = TRUE)
     for (d in subdirs) {
@@ -57,7 +69,11 @@ discover_assets <- function(data_dir = NULL, gene_lengths = NULL) {
         p <- file.path(d, model_files[[type]])
         if (file.exists(p)) found[[type]] <- p
       }
-      if (length(found) > 0L) organs[[basename(d)]] <- found
+      if (length(found) > 0L) {
+        organs[[basename(d)]] <- found
+        ex <- discover_examples(file.path(d, "examples"))
+        if (length(ex) > 0L) examples[[basename(d)]] <- ex
+      }
     }
   }
 
@@ -66,7 +82,32 @@ discover_assets <- function(data_dir = NULL, gene_lengths = NULL) {
          "' (expected <organ>/intergene.rds or <organ>/timecourse.rds).")
   }
 
-  list(gene_lengths = gl, organs = organs)
+  list(gene_lengths = gl, organs = organs, examples = examples)
+}
+
+#' Find the example datasets in one organ's `examples/` folder
+#'
+#' Returns a named list (one entry per example subdirectory) of the example's
+#' file paths: `counts`, `metadata` and `description`. An absent folder gives an
+#' empty list; an example missing any of the three files is an error.
+#' @keywords internal
+#' @noRd
+discover_examples <- function(ex_dir) {
+  if (!dir.exists(ex_dir)) return(list())
+
+  files <- c(counts = "counts.xlsx", metadata = "metadata.xlsx",
+             description = "description.md")
+  examples <- list()
+  for (d in list.dirs(ex_dir, recursive = FALSE, full.names = TRUE)) {
+    paths <- file.path(d, files)
+    if (!all(file.exists(paths))) {
+      stop("Example '", basename(d), "' is incomplete: expected ",
+           paste(files, collapse = ", "), " in ", d)
+    }
+    names(paths) <- names(files)
+    examples[[basename(d)]] <- as.list(paths)
+  }
+  examples
 }
 
 #' Map a metadata table to project_test_data() arguments
