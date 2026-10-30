@@ -37,6 +37,20 @@ upload_with_ext <- function(upload) {
   dest
 }
 
+# Write this R process's current and peak memory use to the log (stderr), which
+# the hosting platform shows in its container logs. Linux only: it reads
+# /proc/self/status (VmRSS = now, VmHWM = highest so far); elsewhere it does nothing.
+log_memory <- function(stage) {
+  if (!file.exists("/proc/self/status")) return(invisible())
+  status <- readLines("/proc/self/status")
+  mb <- function(key) {
+    round(as.numeric(gsub("[^0-9]", "", grep(paste0("^", key, ":"), status, value = TRUE))) / 1024)
+  }
+  message(sprintf("[ttmouse] memory at %s: current %d MB, peak %d MB",
+                  stage, mb("VmRSS"), mb("VmHWM")))
+}
+log_memory("app start")
+
 # Render markdown text to HTML (commonmark, via shiny), with every link opening
 # in a new browser tab so following one never navigates away from a running
 # session and its results.
@@ -383,6 +397,13 @@ server <- function(input, output, session) {
         if (inherits(e, "ttmouse_time_error")) state$status_type <- "error"
       })
     })
+    # Peak memory over the run (also reached after early stops and errors).
+    data_label <- if (identical(input$input_source, "example")) {
+      paste("example", input$example)
+    } else {
+      input$counts$name
+    }
+    log_memory(sprintf("end of run (%s, %s)", input$model_choice, data_label))
   })
 
   # Local-projection selector for the 3D plots, from the chosen model's choices.
