@@ -12,10 +12,6 @@
 # require_time = TRUE, needs >= 1 grouping column) and optional for intergene
 # (require_time = FALSE, nothing required); the same column names are checked in
 # both cases. read_metadata() + metadata_to_projection_args() handle the mapping.
-#
-# Input is either the user's uploads or a bundled example dataset for the
-# selected organ (assets/<organ>/examples/<name>/). Examples are read from disk
-# on each run and go through exactly the same pipeline as uploads.
 
 library(shiny)
 library(plotly)
@@ -36,6 +32,20 @@ upload_with_ext <- function(upload) {
   file.copy(upload$datapath, dest, overwrite = TRUE)
   dest
 }
+
+# Write this R process's current and peak memory use to the log (stderr), which
+# the hosting platform shows in its container logs. Linux only: it reads
+# /proc/self/status (VmRSS = now, VmHWM = highest so far); elsewhere it does nothing.
+log_memory <- function(stage) {
+  if (!file.exists("/proc/self/status")) return(invisible())
+  status <- readLines("/proc/self/status")
+  mb <- function(key) {
+    round(as.numeric(gsub("[^0-9]", "", grep(paste0("^", key, ":"), status, value = TRUE))) / 1024)
+  }
+  message(sprintf("[ttmouse] memory at %s: current %d MB, peak %d MB",
+                  stage, mb("VmRSS"), mb("VmHWM")))
+}
+log_memory("app start")
 
 # Render markdown text to HTML (commonmark, via shiny), with every link opening
 # in a new browser tab so following one never navigates away from a running
@@ -88,8 +98,6 @@ ui <- fluidPage(
     .tt-footer { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #dee2e6;
                  font-size: 0.85rem; color: #495d6b; }
     .tt-footer p { margin-bottom: 0.5rem; }
-    .tt-example { font-size: 0.85rem; line-height: 1.45; margin-bottom: 0.75rem; }
-    .tt-example p { margin-bottom: 0.5rem; }
   "))),
   titlePanel("ttmouse - circadian clock projection"),
   sidebarLayout(
@@ -100,35 +108,16 @@ ui <- fluidPage(
       uiOutput("model_type_selector"),
       helpText("intergene: per-sample (single sample OK). ",
                "timecourse: needs group structure in the metadata."),
-      # Input source: the user's own files, or a bundled example dataset
-      # (offered only when the selected organ has one).
-      uiOutput("input_source_selector"),
-      # Upload panel. "!= 'example'" (not "== 'upload'") so it also shows
-      # before the input-source selector has rendered.
-      conditionalPanel(
-        "input.input_source != 'example'",
-        fileInput("counts", "Raw count matrix (.csv or .xlsx)",
-                  accept = c(".csv", ".xlsx")),
-        # Metadata upload is available for both paths: required for timecourse,
-        # optional for intergene.
-        fileInput("metadata", "Sample metadata (.csv or .xlsx)",
-                  accept = c(".csv", ".xlsx")),
-        helpText("Recognised columns: time, group_1/2/3, replicate (any order, ",
-                 "case-insensitive). Required for timecourse (needs time + at ",
-                 "least one group); optional for intergene. Rows must be in the ",
-                 "same order as the count columns.")
-      ),
-      # Example panel: picker, description, and the example's input files.
-      conditionalPanel(
-        "input.input_source == 'example'",
-        uiOutput("example_selector"),
-        uiOutput("example_description"),
-        downloadButton("download_example_counts", "Counts (.xlsx)",
-                       class = "btn-sm"),
-        downloadButton("download_example_metadata", "Metadata (.xlsx)",
-                       class = "btn-sm"),
-        tags$br(), tags$br()
-      ),
+      fileInput("counts", "Raw count matrix (.csv or .xlsx)",
+                accept = c(".csv", ".xlsx")),
+      # Metadata upload is available for both paths: required for timecourse,
+      # optional for intergene.
+      fileInput("metadata", "Sample metadata (.csv or .xlsx)",
+                accept = c(".csv", ".xlsx")),
+      helpText("Recognised columns: time, group_1/2/3, replicate (any order, ",
+               "case-insensitive). Required for timecourse (needs time + at ",
+               "least one group); optional for intergene. Rows must be in the ",
+               "same order as the count columns."),
       actionButton("run", "Run projection", class = "btn-primary"),
       tags$hr(),
       # Selectors for the plots (populated after a run).
@@ -242,66 +231,13 @@ server <- function(input, output, session) {
     train_genes(current_model(), .assets$gene_lengths)
   })
 
-  # --- Example datasets ---------------------------------------------------
-  # Examples bundled for the selected organ: named list of file paths
-  # (counts, metadata, description), from discover_assets().
-  organ_examples <- reactive(.assets$examples[[current_organ()]])
-
-  # Input-source selector; "Example dataset" only when the organ has one.
-  output$input_source_selector <- renderUI({
-    choices <- c("Upload my own data" = "upload")
-    if (length(organ_examples()) > 0L) {
-      choices <- c(choices, "Example dataset" = "example")
-    }
-    radioButtons("input_source", "Input data", choices = choices,
-                 selected = "upload")
-  })
-
-  output$example_selector <- renderUI({
-    ex <- names(organ_examples())
-    req(length(ex) > 0L)
-    selectInput("example", "Example dataset", choices = ex, selected = ex[[1]])
-  })
-
-  # File paths of the chosen example.
-  current_example <- reactive({
-    req(input$example, input$example %in% names(organ_examples()))
-    organ_examples()[[input$example]]
-  })
-
-  # Description shown on selection (markdown, links open in a new tab).
-  output$example_description <- renderUI({
-    txt <- readLines(current_example()$description, encoding = "UTF-8",
-                     warn = FALSE)
-    div(class = "tt-example", md_to_html(paste(txt, collapse = "\n")))
-  })
-
-  # The example's input files, so users can see the expected format.
-  output$download_example_counts <- downloadHandler(
-    filename = function() paste0(input$example, "_counts.xlsx"),
-    content  = function(file) file.copy(current_example()$counts, file)
-  )
-  output$download_example_metadata <- downloadHandler(
-    filename = function() paste0(input$example, "_metadata.xlsx"),
-    content  = function(file) file.copy(current_example()$metadata, file)
-  )
-
   # Run the full pipeline when the button is pressed.
   observeEvent(input$run, {
     state$object <- NULL  # clear any previous result
     state$status_type <- "info"  # clear any prior error styling
     state$warnings <- character(0)  # clear any prior warnings
 
-    # Input files: the chosen example, or the user's uploads. Both then go
-    # through exactly the same pipeline.
-    if (identical(input$input_source, "example")) {
-      counts_path   <- current_example()$counts
-      metadata_path <- current_example()$metadata
-    } else {
-      req(input$counts)
-      counts_path   <- upload_with_ext(input$counts)
-      metadata_path <- if (!is.null(input$metadata)) upload_with_ext(input$metadata)
-    }
+    req(input$counts)
     is_timecourse <- input$model_choice == "timecourse"
     model <- current_model()
 
@@ -313,7 +249,7 @@ server <- function(input, output, session) {
       tryCatch({
         # --- Read + preprocess ---------------------------------------------
         setProgress(0.1, detail = "Reading and preprocessing counts")
-        counts <- read_counts(counts_path)
+        counts <- read_counts(upload_with_ext(input$counts))
         expr   <- preprocess_counts(counts, gene_lengths = .assets$gene_lengths)
 
         # --- Gene check (block clearly if genes are missing) ----------------
@@ -329,12 +265,12 @@ server <- function(input, output, session) {
         # Timecourse: metadata required (time + >= 1 group). Intergene: optional;
         # if provided, the same columns are checked but nothing is required.
         meta_args <- list()
-        if (!is.null(metadata_path)) {
+        if (!is.null(input$metadata)) {
           # Non-blocking warnings (e.g. unrecognised time formats on intergene,
           # or mixed ZT/CT labels) are collected for display under the status
           # line instead of being lost in the console.
           md <- withCallingHandlers(
-            read_metadata(metadata_path, counts = counts,
+            read_metadata(upload_with_ext(input$metadata), counts = counts,
                           require_time = is_timecourse),
             warning = function(w) {
               state$warnings <- c(state$warnings, conditionMessage(w))
@@ -383,6 +319,9 @@ server <- function(input, output, session) {
         if (inherits(e, "ttmouse_time_error")) state$status_type <- "error"
       })
     })
+    # Peak memory over the run (also reached after early stops and errors).
+    log_memory(sprintf("end of run (%s, %s)", input$model_choice,
+                       if (is.null(input$counts)) "no file" else input$counts$name))
   })
 
   # Local-projection selector for the 3D plots, from the chosen model's choices.
